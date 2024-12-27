@@ -1,4 +1,5 @@
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE TupleSections #-}
 module Main where
 
 import Data.Maybe
@@ -25,9 +26,11 @@ days = [("day0", day0),
         ("altday6", altday6),
         ("day7", day7),
         ("altday7", altday7),
+        ("day8", day8),
         ("day9", day9),
         ("day11", day11),
-        ("altday11", altday11)]
+        ("altday11", altday11),
+        ("day13", day13)]
 
 main :: IO ()
 main = do
@@ -409,8 +412,39 @@ altday7 = show . sum . map solve . parseDay7
     tree a [b] = [a + b, a * b, toInt (show b ++ show a)]
     tree a (b:bs) = a+b : a * b : toInt (show b ++ show a) : tree a bs
 
---Day 9
+--Day 8
 
+data Day8 = Day8 {
+  size::(Int, Int),
+  groupedNodes::[[Position]]
+} deriving Show
+
+parseDay8 :: String -> Day8
+parseDay8 input = Day8 size' groupedNodes'
+  where
+    field = lines input
+    size' = (length field, length (head field))
+    nodesrows = findIndices (not . all ('.'==)) field
+    coords = concatMap (\x -> map (x,) $ findIndices ('.'/=) (field!!x)) nodesrows
+    nodes' = map (\(x,y) -> ((field !! x)!!y, (x,y))) coords
+    grouped = groupBy (\x y -> fst x == fst y) $ sortBy (\(a,_) (b,_) -> compare a b) nodes'
+    groupedNodes' = map (map snd) grouped
+
+day8 :: String -> String
+day8 = show . solve . parseDay8
+  where
+    solve :: Day8 -> Int
+    solve day8data =  length $ nub $ concatMap (filter (inBounds (size day8data)) . compute) (groupedNodes day8data)
+    inBounds :: Position -> Position -> Bool
+    inBounds (x,y) (x',y') = 0<=x' && 0<=y' && x' < x && y' < y
+    compute :: [Position] -> [Position]
+    compute [a] = []
+    compute (a:as) = concatMap (getUpDown a) as ++ compute as
+    getUpDown :: Position -> Position -> [Position]
+    getUpDown (x,y) (x',y') = [(x+x-x', y+y-y'), (x'-(x-x'), y'-(y-y'))]
+
+--Day 9
+-- (amount, [(value, amounts)])
 parseDay9 :: String -> (Int, [(Int, Int)])
 parseDay9 = comb 0 True . concatMap (map (\x -> toInt [x])) . lines
 
@@ -431,13 +465,13 @@ addDay9 _ [] = 0
 addDay9 n ((num, amount) : as) = sum (zipWith (*) [n..(n+amount-1)] (replicate amount num)) + addDay9 (n+amount) as
 
 solveDay9 :: Int -> [(Int, Int)] -> [(Int, Int)] -> [(Int, Int)]
-solveDay9 toGo as ((-1,_):bs) = solveDay9 toGo as bs
 solveDay9 0 _ _ = []
-solveDay9 toGo ((-1, a):as) ((b,amount):bs) | toGo < a || toGo <= amount = [(b,toGo)]
-                                            | amount < a = (b,amount) : solveDay9 (toGo-amount) ((-1, a-amount):as) bs
-                                            | amount == a = (b,amount) : solveDay9 (toGo-amount) as bs
-                                            | otherwise = (b, a) : solveDay9 (toGo-a) as ((b,amount-a):bs)
-solveDay9 toGo ((num, a):as) bs = (num,a) : solveDay9 (toGo - a) as bs
+solveDay9 n as ((-1,_):vs) = solveDay9 n as vs
+solveDay9 n ((-1,aamount):as) ((v,vamount):vs) | vamount >= n = [(v,vamount)]
+                                               | aamount == vamount = (v,vamount) : solveDay9 (n-vamount) as vs
+                                               | aamount > vamount = (v,vamount) : solveDay9 (n-vamount) ((-1,aamount-vamount):as) vs
+                                               | otherwise = (v,aamount) : solveDay9 (n-aamount) as ((v,vamount-aamount) : vs)
+solveDay9 n ((a,aamount):as) vs = (a,aamount) : solveDay9 (n-aamount) as vs
 solveDay9 _ _ _ = error "fucky"
 
 --Day 11
@@ -460,3 +494,25 @@ blink (x:xs) | odd (floor index) = fs : sn : blink xs
 
 altday11 :: String -> String
 altday11 = show . length . repeatF 75 blink . parseDay11
+
+--Day 13
+
+data Day13 = Day13 {
+  a :: Button,
+  b :: Button,
+  goal :: Position
+} deriving Show
+
+type Button = (Int,Int)
+
+parseDay13 :: String -> [Day13]
+parseDay13 = map parse . splitOnEach [] . lines
+  where
+    parse [a,b,goal] = Day13 (parseButton $ words a) (parseButton $ words b) (parseGoal $ words goal)
+    parseButton a = (parseX (a!!2), parseY (a!!3))
+    parseX a = toInt $ drop 2 $ take (length a -1) a
+    parseY a = toInt $ drop 2 a
+    parseGoal g = (parseX (g!!1), parseY (g!!2))
+
+day13 :: String -> String
+day13 = show . parseDay13
