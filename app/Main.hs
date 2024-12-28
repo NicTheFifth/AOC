@@ -9,6 +9,8 @@ import Data.Bool
 import Text.Show.Functions
 import GHC.Float
 import Data.Bits
+import Text.Regex.TDFA
+import qualified Data.Ord
 
 days :: [(String, String -> String)]
 days = [("day0", day0),
@@ -33,7 +35,8 @@ days = [("day0", day0),
         ("day13", day13),
         ("altday13", altday13),
         ("day14", day14),
-        ("day17", day17)]
+        ("day17", day17),
+        ("day19", day19)]
 
 main :: IO ()
 main = do
@@ -619,3 +622,20 @@ doOp _ _ _ = error "Fuckywucky"
 
 adv :: Reg -> Int -> Int
 adv reg op = fstTrip reg `div` (2^combo op reg)
+
+--Day 19
+
+data Day19 = Day19 {
+  regex::String,
+  inputs::[String]
+} deriving Show
+
+parseDay19 :: ([String], [String]) -> Day19
+parseDay19 ([unparsedRegEx], parsedInput) = Day19 regEx parsedInput
+  where
+    regEx = '^':'(':'(' : intercalate ")|(" (sortOn (Data.Ord.Down . length) (map (\x -> take (length x - 1) x) $ words unparsedRegEx)) ++ "))+$"
+
+day19 :: String -> String
+day19 = show . length . valid . parseDay19 . splitOn [] . lines
+    where
+      valid (Day19 regex inputs) = filter (\x -> ((x =~ regex) :: Bool)) inputs
