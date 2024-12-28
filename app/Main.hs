@@ -8,7 +8,7 @@ import Data.Bifunctor
 import Data.Bool
 import Text.Show.Functions
 import GHC.Float
-import Data.Data (ConstrRep(FloatConstr))
+import Data.Bits
 
 days :: [(String, String -> String)]
 days = [("day0", day0),
@@ -30,7 +30,10 @@ days = [("day0", day0),
         ("day9", day9),
         ("day11", day11),
         ("altday11", altday11),
-        ("day13", day13)]
+        ("day13", day13),
+        ("altday13", altday13),
+        ("day14", day14),
+        ("day17", day17)]
 
 main :: IO ()
 main = do
@@ -39,7 +42,7 @@ main = do
   file <- readFile ("days/"++ parseDay day ++ ".txt")
   putStr $ findFunction day file
 
-parseDay :: [Char] -> [Char]
+parseDay :: String -> String
 parseDay input | "alt" `isPrefixOf` input = drop 3 input
                | otherwise = input
 
@@ -64,7 +67,7 @@ splitOnEach cond input | fstBreak == input = [fstBreak]
     (fstBreak,sndBreak) =  splitOn cond input
 
 get :: Int -> Int -> [[a]] -> a
-get a b c = (c !! a) !! b
+get a b c = c !! a !! b
 
 repeatF :: Int -> (a -> a) -> a -> a
 repeatF 0 _ = id
@@ -90,7 +93,7 @@ altday1 = show . solve . clean . day1parser
     clean _ = error "we ded"
     solve :: [[Int]] -> Int
     solve [[],_] = 0
-    solve [a:b, c] = (length (elemIndices a c) * a) + solve [b,c]
+    solve [a:b, c] = length (elemIndices a c) * a + solve [b,c]
     solve _ = error "we ded"
 
 --Day 2
@@ -210,15 +213,15 @@ altday4 input = show xmas
     square = lines input
     (x,y) = (length square, length (transpose square))
     as = [(i,indices) | i <- [1..x-2], let indices = filter (\z -> z < y-1 && 0<z) $ elemIndices 'A' (square !! i)]
-    check :: [Char] -> Bool
+    check :: String -> Bool
     check "MS" = True
     check "SM" = True
     check _ = False
 
     xmas = length [1 | (i, indices) <- as,
                         i' <- indices,
-                        check [(square !! (i+1)) !! (i'+1), (square !! (i-1)) !! (i'-1)],
-                        check [(square !! (i-1)) !! (i'+1), (square !! (i+1)) !! (i'-1)]
+                        check [square !! (i+1) !! (i'+1), square !! (i-1) !! (i'-1)],
+                        check [square !! (i-1) !! (i'+1), square !! (i+1) !! (i'-1)]
                       ]
 
 -- Day 5
@@ -426,7 +429,7 @@ parseDay8 input = Day8 size' groupedNodes'
     size' = (length field, length (head field))
     nodesrows = findIndices (not . all ('.'==)) field
     coords = concatMap (\x -> map (x,) $ findIndices ('.'/=) (field!!x)) nodesrows
-    nodes' = map (\(x,y) -> ((field !! x)!!y, (x,y))) coords
+    nodes' = map (\(x,y) -> (field !! x!!y, (x,y))) coords
     grouped = groupBy (\x y -> fst x == fst y) $ sortBy (\(a,_) (b,_) -> compare a b) nodes'
     groupedNodes' = map (map snd) grouped
 
@@ -515,4 +518,104 @@ parseDay13 = map parse . splitOnEach [] . lines
     parseGoal g = (parseX (g!!1), parseY (g!!2))
 
 day13 :: String -> String
-day13 = show . parseDay13
+day13 = show . calc . parseDay13
+  where
+    calc = sum . map (getMin . valid)
+    valid :: Day13 -> [Int]
+    valid (Day13 a b goal) = [bs + 3*as | as <- [0..100], bs <- [0..100], fst a*as + fst b*bs == fst goal, snd a*as + snd b * bs == snd goal]
+    getMin [] = 0
+    getMin a = minimum a
+
+altday13 :: String -> String
+altday13 = show . calc . parseDay13
+  where
+    calc = sum . map valid
+    valid' day as bs | isEq day as bs = as*3 + bs
+                     | bs == 0 = 0
+                     | isGreater day as bs = valid' day as (bs-1)
+                     | otherwise = valid' day (as+1) bs
+    valid d@(Day13 a b goal) = valid' d 0 (getLeast b goal)
+    getLeast :: (Int,Int) -> (Int,Int) -> Int
+    getLeast (a,b) (c,d) = min ((10000000000000 + c)`div` a) ((10000000000000+d) `div` b)
+    isEq (Day13 a b goal) as bs = fst a*as + fst b*bs == fst goal && snd a*as + snd b * bs == snd goal
+    isGreater (Day13 a b goal) as bs = fst a*as + fst b*bs >= fst goal && snd a*as + snd b * bs >= snd goal
+
+--Day 14
+
+data Bot = Bot {
+  pos:: Position,
+  move :: (Int, Int)
+}
+
+parseDay14 :: String -> [Bot]
+parseDay14 =  map (botify . splitOn ' ') . lines
+  where
+    botify :: (String,String) -> Bot
+    botify (pos,dir) = Bot (getIntInt pos) (getIntInt dir)
+    getIntInt :: String -> (Int, Int)
+    getIntInt = bimap toInt toInt . splitOn ',' . drop 2
+
+day14 :: String -> String
+day14 = show . calc . map (day14step 100) . parseDay14
+  where
+    isQuad f1 f2 (x,y) = x `f1` 50 && y `f2` 51
+    calc positions = product [length (filter (isQuad a b) positions) | a <- [(<),(>)], b<- [(<),(>)]]
+
+day14step :: Int -> Bot -> Position
+day14step n (Bot (x,y) (dx,dy)) = ((x+n*dx) `mod` 101, (y+n*dy) `mod` 103)
+
+--Day 17
+
+parseDay17 :: [String] -> Day17
+parseDay17 input = Day17 0 reg op []
+  where
+    (unparsedReg, unparsedOp) = splitOn [] input
+    [[a],[b],[c]] = map (map toInt . drop 2 . words) unparsedReg
+    reg = (a,b,c)
+    [[op]] = map (map (map toInt . splitOnEach ',') . drop 1 . words) unparsedOp
+
+day17 :: String -> String
+day17 = intercalate "," . map show . operate . parseDay17 . lines
+
+fstTrip :: (a, b, c) -> a
+fstTrip (a,_,_) = a
+
+sndTrip :: (a, b, c) -> b
+sndTrip (_,b,_) = b
+
+trdTrip :: (a, b, c) -> c
+trdTrip (_,_,c) = c
+
+type Reg = (Int, Int, Int)
+
+combo :: Int -> Reg -> Int
+combo 4 (a,_,_) = a
+combo 5 (_,b,_) = b
+combo 6 (_,_,c) = c
+combo 7 _ = error "fucky"
+combo num _ = num
+
+data Day17 = Day17 {
+  opPos :: Int,
+  reg :: Reg,
+  inst :: [Int],
+  output :: [Int]
+}
+
+operate :: Day17 -> [Int]
+operate day17@(Day17 opPos reg inst output) | length inst <= opPos = reverse output
+                                            | otherwise = operate $ doOp (inst !! opPos) (inst !! (opPos+1)) day17
+
+doOp :: Int -> Int -> Day17 -> Day17
+doOp 0 operand day17 = day17{opPos = opPos day17 + 2, reg = (adv (reg day17) operand, sndTrip (reg day17), trdTrip (reg day17))}
+doOp 1 operand day17 = day17{opPos = opPos day17 + 2, reg = (fstTrip (reg day17), xor (sndTrip (reg day17)) operand, trdTrip (reg day17))}
+doOp 2 operand day17 = day17{opPos = opPos day17 + 2, reg =(fstTrip (reg day17), combo operand (reg day17) `mod` 8, trdTrip (reg day17))}
+doOp 3 operand day17 = day17{opPos = bool operand (opPos day17 + 2) (fstTrip (reg day17) == 0)}
+doOp 4 operand day17 = day17{opPos = opPos day17 + 2,reg = (fstTrip (reg day17), xor (sndTrip (reg day17)) (trdTrip (reg day17)), trdTrip (reg day17))}
+doOp 5 operand day17 = day17{opPos = opPos day17 + 2, output = (combo operand (reg day17) `mod` 8) : output day17}
+doOp 6 operand day17 = day17{opPos = opPos day17 + 2, reg = (fstTrip (reg day17), adv (reg day17) operand, trdTrip (reg day17))}
+doOp 7 operand day17 = day17{opPos = opPos day17 + 2, reg = (fstTrip (reg day17), sndTrip (reg day17), adv (reg day17) operand)}
+doOp _ _ _ = error "Fuckywucky"
+
+adv :: Reg -> Int -> Int
+adv reg op = fstTrip reg `div` (2^combo op reg)
