@@ -41,7 +41,8 @@ days = [("day0", day0),
         ("day14", day14),
         ("day17", day17),
         ("day19", day19),
-        ("day21", day21)
+        ("day21", day21),
+        ("day22", day22)
         ]
 
 main :: IO ()
@@ -701,3 +702,27 @@ day21 = show . sum . map (\x -> toNum x * length (minimumBy (compare `on` length
   where
     toNum :: String -> Int
     toNum = toInt . filter isNumber
+
+--Day 22
+
+stepDay22 :: (Bits a, Integral a) => a -> a
+stepDay22 = subStepDay22 (`shift` 11) . subStepDay22 (`shift` (-5)) . subStepDay22 (`shift` 6)
+
+subStepDay22 :: (Integral a, Bits a) => (a -> a) -> a -> a
+subStepDay22 f x = xor (f x) x `mod` 16777216
+
+day22 :: String -> String
+day22 = show . sum . map (repeatF 2000 stepDay22 . toInt) . lines
+
+--Day 22 part 2
+
+altday22 :: String -> String
+altday22 = show . map (genPrices. toInt) . lines
+  where
+    genPrices x = repeatF 2000 (\(a:as) -> stepDay22 a : a `mod` 10 : as) [x]
+
+altday22Patterns :: [[Integer]]
+altday22Patterns = [[a,b,c,d] | a <- [-9..9], b <- [-9..9], c <- [-9..9], d <- [-9..9]]
+
+getValueDay22 :: [Int] -> [Int]-> Int
+getValueDay22 input (a:xs) = foldl max 0 $ map (\i -> input !! (i+4)) $ filter (\n -> xs == take 3 (drop (n+1) input)) $ elemIndices a input
