@@ -1,5 +1,6 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 module Main where
 
 import Data.Maybe
@@ -11,6 +12,9 @@ import GHC.Float
 import Data.Bits
 import Text.Regex.TDFA
 import qualified Data.Ord
+import GHC.RTS.Flags (ParFlags(parGcThreads))
+import Data.Char (isNumber)
+import Data.Function
 
 days :: [(String, String -> String)]
 days = [("day0", day0),
@@ -36,7 +40,9 @@ days = [("day0", day0),
         ("altday13", altday13),
         ("day14", day14),
         ("day17", day17),
-        ("day19", day19)]
+        ("day19", day19),
+        ("day21", day21)
+        ]
 
 main :: IO ()
 main = do
@@ -639,3 +645,59 @@ day19 :: String -> String
 day19 = show . length . valid . parseDay19 . splitOn [] . lines
     where
       valid (Day19 regex inputs) = filter (\x -> ((x =~ regex) :: Bool)) inputs
+
+--Day 21
+
+type Keypad = [String]
+numpad :: Keypad
+numpad = ["789", "456", "123", "_0A"]
+
+dirpad :: Keypad
+dirpad = ["_^A", "<v>"]
+
+-- tl (x,y) x y
+tl :: (Int, Int) -> Int -> Int -> Keypad -> [String]
+tl coords x y keypad = map toChar legalPaths
+  where
+    xs | x <= 0 = [x..0]
+       | otherwise = [x,x-1..0]
+    ys | y <= 0 = [y..0]
+       | otherwise = [y,y-1..0]
+    (xcoord, ycoord) = coords
+    paths = tl' xs ys
+    legalPaths = map reverse $ filter (\path -> '_' `notElem` map (\(a,t) -> (keypad !! (ycoord+t)) !! (xcoord+a)) path) paths
+
+toChar :: [(Int,Int)] -> String
+toChar [] = ""
+toChar [_] = ""
+toChar [(x1, y1), (x2,y2)] | x1-x2 < 0 = ">"
+                           | x1-x2 > 0 = "<"
+                           | y1-y2 < 0 = "v"
+                           | otherwise = "^"
+toChar ((x1, y1) : (x2,y2) : rest) | x1-x2 < 0 = '>' : toChar ((x2,y2):rest)
+                                   | x1-x2 > 0 = '<' : toChar ((x2,y2):rest)
+                                   | y1-y2 < 0 = 'v' : toChar ((x2,y2):rest)
+                                   | otherwise = '^' : toChar ((x2,y2):rest)
+
+tl' :: [t] -> [a] -> [[(t, a)]]
+tl' [] [] = [[]]
+tl' xs [y] =  [map (,y) xs]
+tl' [x] ys = [map (x,) ys]
+tl' (x:xs) (y:ys) = map ((x,y) :) (tl' xs (y:ys)) ++ map ((x,y) :)  (tl' (x:xs) ys)
+
+-- tochar fromchar
+routes :: Char -> Char -> Keypad -> Maybe [String]
+routes fstChar sndChar padType = day21Coord fstChar padType >>= \(x,y) -> day21Coord sndChar padType >>= \(x',y') -> return $ tl (x,y) (x'-x) (y'-y) padType
+
+-- (x,y) -> keypad !! y !! x
+day21Coord :: Char -> Keypad -> Maybe (Int, Int)
+day21Coord char keypad = findIndex (elem char) keypad >>= \y -> elemIndex char (keypad!!y) >>= \x -> return (x,y)
+
+solveKeypadDay21 ::  Keypad -> String -> [String]
+solveKeypadDay21 keypad input =  map (\s -> drop 1 s ++ "A") $ foldr (\b a -> concatMap (\c -> [d++ ('A':c) | d <- a]) b) [""] $ catMaybes (snd $ foldl (\b a -> (a, routes (fst b) a keypad : snd b)) ('A',[]) input)
+
+day21 :: String -> String
+day21 = show . sum . map (\x -> toNum x * length (minimumBy (compare `on` length) (concatMap (solveKeypadDay21 dirpad) $ concatMap (solveKeypadDay21 dirpad) $ solveKeypadDay21 numpad x))) . lines
+  where
+    toNum :: String -> Int
+    toNum = toInt . filter isNumber
