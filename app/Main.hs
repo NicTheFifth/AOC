@@ -42,7 +42,9 @@ days = [("day0", day0),
         ("day17", day17),
         ("day19", day19),
         ("day21", day21),
-        ("day22", day22)
+        ("day22", day22),
+        ("day23", day23),
+        ("altday23", altday23)
         ]
 
 main :: IO ()
@@ -628,7 +630,7 @@ doOp 7 operand day17 = day17{opPos = opPos day17 + 2, reg = (fstTrip (reg day17)
 doOp _ _ _ = error "Fuckywucky"
 
 adv :: Reg -> Int -> Int
-adv reg op = fstTrip reg `div` (2^combo op reg)
+adv reg op = fstTrip reg `div` 2^combo op reg
 
 --Day 19
 
@@ -666,7 +668,7 @@ tl coords x y keypad = map toChar legalPaths
        | otherwise = [y,y-1..0]
     (xcoord, ycoord) = coords
     paths = tl' xs ys
-    legalPaths = map reverse $ filter (\path -> '_' `notElem` map (\(a,t) -> (keypad !! (ycoord+t)) !! (xcoord+a)) path) paths
+    legalPaths = map reverse $ filter (\path -> '_' `notElem` map (\(a,t) -> keypad !! (ycoord+t) !! (xcoord+a)) path) paths
 
 toChar :: [(Int,Int)] -> String
 toChar [] = ""
@@ -726,3 +728,35 @@ altday22Patterns = [[a,b,c,d] | a <- [-9..9], b <- [-9..9], c <- [-9..9], d <- [
 
 getValueDay22 :: [Int] -> [Int]-> Int
 getValueDay22 input (a:xs) = foldl max 0 $ map (\i -> input !! (i+4)) $ filter (\n -> xs == take 3 (drop (n+1) input)) $ elemIndices a input
+
+--Day23
+
+type BiDirGraph a = [(a,[a])]
+
+graphify :: [(String,String)] -> BiDirGraph String
+graphify = map (\list -> (fst (head list), map snd list)) . groupBy (\a b -> fst a == fst b). sortBy (\(a,_) (b,_) -> compare a b) . foldl (\c (a,b) -> (a,b): (b,a) : c) []
+
+day23 :: String -> String
+day23 = show . length . filter (any ( (==) 't' . head)). getTriple . graphify . map (splitOn '-') . lines
+
+getTriple :: Ord a => [(a, [a])] -> [[a]]
+getTriple input = nub $ map sort $ [[a,b,c] |(a, alist) <- input,
+                                             b <- alist,
+                                             c <- fromMaybe [] (lookup b input),
+                                             a `elem` fromMaybe [] (lookup c input)]
+
+-- Day 23 part 2
+
+altday23 :: String -> String
+altday23 =  intercalate "," . sort . maximumBy (\a b -> length a `compare` length b) . getLongest . graphify . map (splitOn '-') . lines
+
+getLongest :: BiDirGraph String -> [[String]]
+getLongest graph = nub $ concatMap (grow graph . Just . first (: [])) graph
+
+grow :: Eq a => BiDirGraph a -> Maybe ([a], [a]) -> [[a]]
+grow _ Nothing = []
+grow graph (Just (parts, [])) = [parts]
+grow graph (Just (parts, possibleConnections)) = concatMap (grow graph . connect graph parts possibleConnections) possibleConnections
+
+connect :: Eq a => [(a, [a])] -> [a] -> [a] -> a -> Maybe ([a], [a])
+connect graph parts pConnect connection = lookup connection graph >>= \cnext -> bool (Just (parts, [])) (Just (connection : parts, pConnect `intersect` cnext)) (parts `isSubsequenceOf` cnext)
