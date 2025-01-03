@@ -44,7 +44,8 @@ days = [("day0", day0),
         ("day21", day21),
         ("day22", day22),
         ("day23", day23),
-        ("altday23", altday23)
+        ("altday23", altday23),
+        ("day24", day24)
         ]
 
 main :: IO ()
@@ -760,3 +761,30 @@ grow graph (Just (parts, possibleConnections)) = concatMap (grow graph . connect
 
 connect :: Eq a => [(a, [a])] -> [a] -> [a] -> a -> Maybe ([a], [a])
 connect graph parts pConnect connection = lookup connection graph >>= \cnext -> bool (Just (parts, [])) (Just (connection : parts, pConnect `intersect` cnext)) (parts `isSubsequenceOf` cnext)
+
+-- Day 24
+
+type Registry = [(String, Bool)]
+
+genRegistry :: [String] -> Registry
+genRegistry = map (bimap (take 3) (== "1") . splitOn ' ')
+
+genFuncs :: [String] -> [Registry -> Maybe Registry]
+genFuncs = map (genFunc . words)
+
+genFunc :: [String] ->(Registry -> Maybe Registry)
+genFunc [a,"AND",b,_,c] = abstractFunc a (.&.) b c
+genFunc [a,"OR",b,_,c] = abstractFunc a (.|.) b c
+genFunc [a,"XOR",b,_,c] = abstractFunc a xor b c
+genFunc errorList = error $ show errorList
+
+abstractFunc :: String -> (Bool -> Bool -> Bool) -> String -> String -> (Registry -> Maybe Registry)
+abstractFunc a f b c reg = lookup a reg >>= \as -> lookup b reg >>= \bs -> return ((c, f as bs) : deleteBy (\input output ->  fst output == fst input) (c, False) reg)
+
+day24 :: String -> String
+day24 = show . foldr ((\x y -> fromEnum x + 2*y) . snd) 0 . sort. filter (\a -> "z" `isPrefixOf` fst a) . uncurry (keepFoldin []) . bimap genRegistry genFuncs . splitOn "" . lines
+
+keepFoldin :: [t -> Maybe t] -> t -> [t -> Maybe t] -> t
+keepFoldin [] reg [] = reg
+keepFoldin bacc reg [] = keepFoldin [] reg bacc
+keepFoldin bacc reg (a:as) = (\regRes -> bool (keepFoldin (a:bacc) reg as) (keepFoldin bacc (fromJust regRes) as) (isJust regRes)) $ a reg
