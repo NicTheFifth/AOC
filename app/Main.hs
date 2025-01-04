@@ -34,6 +34,7 @@ days = [("day0", day0),
         ("day7", day7),
         ("altday7", altday7),
         ("day8", day8),
+        ("altday8", altday8),
         ("day9", day9),
         ("day11", day11),
         ("altday11", altday11),
@@ -460,6 +461,20 @@ day8 = show . solve . parseDay8
     compute (a:as) = concatMap (getUpDown a) as ++ compute as
     getUpDown :: Position -> Position -> [Position]
     getUpDown (x,y) (x',y') = [(x+x-x', y+y-y'), (x'-(x-x'), y'-(y-y'))]
+
+-- Day 8 part 2
+
+altday8 :: String -> String
+altday8 = show . solve . parseDay8
+  where
+    solve :: Day8 -> Int
+    solve day8data = length$ nub $ concatMap (compute (size day8data)) (groupedNodes day8data)
+    compute ::(Int,Int) -> [Position] -> [Position]
+    compute _ [a] = []
+    compute bounds (a:as) = concatMap (getAll bounds a) as ++ compute bounds as
+    getAll :: (Int, Int) -> Position -> Position -> [Position]
+    getAll bounds (x,y) (x',y') = takeWhile (inBounds bounds) [(x+(a*(x-x')), y+(a*(y-y')))| a <- [0..]] ++ takeWhile (inBounds bounds) [(x'-(a*(x-x')), y'-(a*(y-y')))| a <- [0..]] 
+    inBounds (x,y) (x',y') = 0<=x' && 0<=y' && x' < x && y' < y
 
 --Day 9
 -- (amount, [(value, amounts)])
