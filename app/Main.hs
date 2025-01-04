@@ -1,6 +1,7 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE InstanceSigs #-}
 module Main where
 
 import Data.Maybe
@@ -257,31 +258,31 @@ day5 input = show $ sum centerNumbers
     centerNumbers = map (\x -> toInt (x !! (length x `div` 2))) validTests
 
 altday5 :: String -> String
-altday5 input = show $ sum (getCentres validTests) + sum (getCentres validifiedTests)
+altday5 input = show $ sum (getCentres validifiedTests)
   where
-    (rules, tests) =  parseTests $ parseRules $ splitOn "" (lines input)
-    parseRules :: ([String], c) -> ([(String,String)], c)
-    parseRules = first (map (splitOn '|'))
-    parseTests :: (c, [String]) -> (c, [[String]])
-    parseTests = second (map (splitOnEach ','))
+    (rules, tests) = bimap parseRules parseTests $ splitOn "" (lines input)
+    parseRules :: [String] -> [(String,[String])]
+    parseRules = map (\list -> (fst (head list), map snd list)) .groupBy (\a b -> fst a == fst b) . sort . map (splitOn '|')
+    parseTests :: [String] -> [[String]]
+    parseTests = map (splitOnEach ',')
     (validTests,invalidTests) = partition (valid . reverse) tests
     valid :: [String] -> Bool
     valid [] = True
     valid (a:xs) = found a xs && valid xs
     found :: String -> [String] -> Bool
-    found a xs | isNothing (lookup a rules) = True
-               | otherwise = all ((`notElem` xs) . snd) (filter (\x -> a == fst x) rules)
+    found a xs = all (`notElem` xs) $ fromMaybe [] (lookup a rules)
     getCentres = map (\x -> toInt (x !! (length x `div` 2)))
-    validifiedTests = map (reverse . validify) (reverse invalidTests)
-    validify [] = []
-    validify (a:as) | isNothing (lookup a rules) = a : validify as
-                    | otherwise = a : validify as --To fix
+    validifiedTests = map (sortBy (\a b -> ordening (lookup b rules) a b)) invalidTests
+    ordening Nothing _ _ = EQ
+    ordening (Just az) a b | a `elem` az = GT
+                           | otherwise = EQ
 
 --Day 6
 
 data Direction = DUp | DDown | DLeft | DRight deriving (Show,Eq)
 
 instance Enum Direction where
+  toEnum :: Int -> Direction
   toEnum int = get $ abs $ int `mod` 4
     where
       get 0 = DUp
@@ -289,6 +290,7 @@ instance Enum Direction where
       get 2 = DDown
       get 3 = DLeft
       get _ = error "no enum exists"
+  fromEnum :: Direction -> Int
   fromEnum DUp = 0
   fromEnum DRight = 1
   fromEnum DDown = 2
